@@ -58,87 +58,92 @@ app.post("/", upload.single("file-to-upload"), async (req, res) => {
   try {
     // Upload image to cloudinary
     const result = await cloudinary.uploader.upload(req.file.path);
-    const facesImageURL = result.secure_url;
-    const objectURL = result.secure_url;
+    const bookURL = result.secure_url;
 
     async.series([
       async function () {
         /**
-                * DETECT FACES
-                * This example detects faces and returns its:
-                *     gender, age, location of face (bounding box), confidence score, and size of face.
-                */
+       * OCR: READ PRINTED & HANDWRITTEN TEXT WITH THE READ API
+       * Extracts text from images using OCR (optical character recognition).
+       */
         console.log('-------------------------------------------------');
-        console.log('DETECT FACES');
+        console.log('READ PRINTED, HANDWRITTEN TEXT AND PDF');
         console.log();
 
-        // <snippet_faces>
-        // const facesImageURL = 'https://raw.githubusercontent.com/Azure-Samples/cognitive-services-sample-data-files/master/ComputerVision/Images/faces.jpg';
+        // URL images containing printed and/or handwritten text. 
+        // The URL can point to image files (.jpg/.png/.bmp) or multi-page files (.pdf, .tiff).
+        // const bookURL = 'https://raw.githubusercontent.com/Azure-Samples/cognitive-services-sample-data-files/master/ComputerVision/Images/printed_text.jpg';
 
-        // Analyze URL image.
-        console.log('Analyzing faces in image...', facesImageURL.split('/').pop());
-        // Get the visual feature for 'Faces' only.
-        const faces = (await computerVisionClient.analyzeImage(facesImageURL, { visualFeatures: ['Faces'] })).faces;
+        // Recognize text in printed image from a URL
+        console.log('Read printed text from URL...', bookURL.split('/').pop());
+        const printedResult = await readTextFromURL(computerVisionClient, bookURL);
+        printRecText(printedResult);
 
-        // Print the bounding box, gender, and age from the faces.
-        if (faces.length) {
-          console.log(`${faces.length} face${faces.length == 1 ? '' : 's'} found:`);
-          for (const face of faces) {
-            console.log(`    Gender: ${face.gender}`.padEnd(20)
-              + ` Age: ${face.age}`.padEnd(10) + `at ${formatRectFaces(face.faceRectangle)}`);
+        // Perform read and await the result from URL
+        async function readTextFromURL(client, url) {
+          // To recognize text in a local image, replace client.read() with readTextInStream() as shown:
+          let result = await client.read(url);
+          // Operation ID is last path segment of operationLocation (a URL)
+          let operation = result.operationLocation.split('/').slice(-1)[0];
+
+          // Wait for read recognition to complete
+          // result.status is initially undefined, since it's the result of read
+          while (result.status !== "succeeded") { await sleep(1000); result = await client.getReadResult(operation); }
+          return result.analyzeResult.readResults; // Return the first page of result. Replace [0] with the desired page if this is a multi-page file such as .pdf or .tiff.
+        }
+
+        // Prints all text from Read result
+        function printRecText(readResults) {
+          console.log('Recognized text:');
+          for (const page in readResults) {
+            if (readResults.length > 1) {
+              console.log(`==== Page: ${page}`);
+            }
+            const result = readResults[page];
+            if (result.lines.length) {
+              for (const line of result.lines) {
+                console.log(line.words.map(w => w.text).join(' '));
+              }
+            }
+            else { console.log('No recognized text.'); }
           }
-        } else { console.log('No faces found.'); }
-        // </snippet_faces>
-
-        // <snippet_formatfaces>
-        // Formats the bounding box
-        function formatRectFaces(rect) {
-          return `top=${rect.top}`.padEnd(10) + `left=${rect.left}`.padEnd(10) + `bottom=${rect.top + rect.height}`.padEnd(12)
-            + `right=${rect.left + rect.width}`.padEnd(10) + `(${rect.width}x${rect.height})`;
         }
-        // </snippet_formatfaces>
 
         /**
-         * END - Detect Faces
+         * 
+         * Download the specified file in the URL to the current local folder
+         * 
          */
-
-        /**
-    /**
-         * DETECT OBJECTS
-         * Detects objects in URL image:
-         *     gives confidence score, shows location of object in image (bounding box), and object size. 
-         */
-        console.log('-------------------------------------------------');
-        console.log('DETECT OBJECTS');
-        console.log();
-
-        // <snippet_objects>
-        // Image of a dog
-        // const objectURL = 'https://raw.githubusercontent.com/Azure-Samples/cognitive-services-node-sdk-samples/master/Data/image.jpg';
-
-        // Analyze a URL image
-        console.log('Analyzing objects in image...', objectURL.split('/').pop());
-        const objects = (await computerVisionClient.analyzeImage(objectURL, { visualFeatures: ['Objects'] })).objects;
-        console.log();
-
-        // Print objects bounding box and confidence
-        if (objects.length) {
-          console.log(`${objects.length} object${objects.length == 1 ? '' : 's'} found:`);
-          for (const obj of objects) { console.log(`    ${obj.object} (${obj.confidence.toFixed(2)}) at ${formatRectObjects(obj.rectangle)}`); }
-        } else { console.log('No objects found.'); }
-        // </snippet_objects>
-
-        // <snippet_objectformat>
-        // Formats the bounding box
-        function formatRectObjects(rect) {
-          return `top=${rect.y}`.padEnd(10) + `left=${rect.x}`.padEnd(10) + `bottom=${rect.y + rect.h}`.padEnd(12)
-            + `right=${rect.x + rect.w}`.padEnd(10) + `(${rect.w}x${rect.h})`;
+        function downloadFilesToLocal(url, localFileName) {
+          return new Promise((resolve, reject) => {
+            console.log('--- Downloading file to local directory from: ' + url);
+            const request = https.request(url, (res) => {
+              if (res.statusCode !== 200) {
+                console.log(`Download sample file failed. Status code: ${res.statusCode}, Message: ${res.statusMessage}`);
+                reject();
+              }
+              var data = [];
+              res.on('data', (chunk) => {
+                data.push(chunk);
+              });
+              res.on('end', () => {
+                console.log('   ... Downloaded successfully');
+                fs.writeFileSync(localFileName, Buffer.concat(data));
+                resolve();
+              });
+            });
+            request.on('error', function (e) {
+              console.log(e.message);
+              reject();
+            });
+            request.end();
+          });
         }
-        // </snippet_objectformat>
+
         /**
-         * END - Detect Objects
+         * END - Recognize Printed & Handwritten Text
          */
-        res.render("result.ejs", { faces: faces, img: facesImageURL });
+        res.render("result.ejs", { img: bookURL });
       }
     ])
 
