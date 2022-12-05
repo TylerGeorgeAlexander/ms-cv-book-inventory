@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Mask Detector</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <% if(faces.length > 0 && person.length > 0){ %>
+    <h3>No mask detected</h3>
+    <img src="<%= img%>" alt="uploaded image" />
+    <%}else{%>
+    <h3>Mask or no face detected</h3>
+    <img src="<%= img%>" alt="uploaded image" />
+    <%}%>
+
+    <form action="/" enctype="multipart/form-data" method="post">
+      <input type="file" name="file-to-upload" />
+      <input type="submit" value="Upload" />
+    </form>
+    <h3><%=faces?.age%></h3>
+  </body>
+</html>
