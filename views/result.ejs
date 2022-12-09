@@ -11,5 +11,8 @@
       <input type="file" name="file-to-upload" />
       <input type="submit" value="Upload" />
     </form>
+
+    <%=result[0].lines.map(line => line.words.map(w => w.text).join(' ')) %>
   </body>
 </html>
+
