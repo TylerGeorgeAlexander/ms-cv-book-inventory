@@ -143,7 +143,8 @@ app.post("/", upload.single("file-to-upload"), async (req, res) => {
         /**
          * END - Recognize Printed & Handwritten Text
          */
-        res.render("result.ejs", { img: bookURL });
+        console.log("Printed Result:", printedResult)
+        res.render("result.ejs", { result: printedResult, img: bookURL });
       }
     ])
 
